@@ -1,0 +1,169 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://netcn.dev/schema/ast/v1",
+  "title": "netcn AST Schema",
+  "description": "Canonical JSON schema for validating AST payloads submitted to /templates and /generate endpoints. Used by the ASP.NET Core backend with System.Text.Json + JSON Schema validation.",
+  "type": "object",
+  "required": ["nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "description": "All architectural nodes in the design.",
+      "items": { "$ref": "#/$defs/AstNode" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Visual dependency edges between nodes.",
+      "items": { "$ref": "#/$defs/AstEdge" }
+    }
+  },
+
+  "$defs": {
+    "AstNode": {
+      "type": "object",
+      "required": ["id", "type", "name", "annotations", "position", "plugs", "sockets"],
+      "properties": {
+        "id":          { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$", "maxLength": 128 },
+        "type":        { "type": "string", "enum": ["Controller", "Service", "Entity"] },
+        "name":        { "type": "string", "maxLength": 128 },
+        "annotations": { "type": "array", "items": { "$ref": "#/$defs/AnnotationBadge" } },
+        "position":    { "$ref": "#/$defs/Position" },
+        "plugs":       { "type": "array", "items": { "$ref": "#/$defs/Plug" } },
+        "sockets":     { "type": "array", "items": { "$ref": "#/$defs/Socket" } },
+
+        "routePrefix": { "type": "string", "maxLength": 256 },
+        "methods":     { "type": "array", "items": { "$ref": "#/$defs/AstMethod" } },
+        "implements":  { "type": "string", "maxLength": 128 },
+        "lifetime":    { "type": "string", "enum": ["Scoped", "Transient", "Singleton"] },
+        "tableName":   { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "maxLength": 128 },
+        "properties":  { "type": "array", "items": { "$ref": "#/$defs/AstProperty" } }
+      },
+      "allOf": [
+        {
+          "if":   { "properties": { "type": { "const": "Controller" } } },
+          "then": { "required": ["routePrefix", "methods"] }
+        },
+        {
+          "if":   { "properties": { "type": { "const": "Service" } } },
+          "then": { "required": ["implements", "lifetime", "methods"] }
+        },
+        {
+          "if":   { "properties": { "type": { "const": "Entity" } } },
+          "then": { "required": ["tableName", "properties"] }
+        }
+      ]
+    },
+
+    "AnnotationBadge": {
+      "type": "string",
+      "enum": ["ApiController", "Authorize", "AllowAnonymous", "JWT", "Route", "ValidateModel"],
+      "description": "FIXED allow-list per SECURITY.md §4. Never accept arbitrary annotation values."
+    },
+
+    "Position": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+
+    "Plug": {
+      "type": "object",
+      "required": ["id", "label", "dataType", "sourceField"],
+      "properties": {
+        "id":          { "type": "string" },
+        "label":       { "type": "string", "maxLength": 256 },
+        "dataType":    { "type": "string", "maxLength": 128 },
+        "sourceField": { "type": "string", "maxLength": 128 }
+      }
+    },
+
+    "Socket": {
+      "type": "object",
+      "required": ["id", "label", "dataType", "targetField"],
+      "properties": {
+        "id":          { "type": "string" },
+        "label":       { "type": "string", "maxLength": 256 },
+        "dataType":    { "type": "string", "maxLength": 128 },
+        "targetField": { "type": "string", "maxLength": 128 }
+      }
+    },
+
+    "AstMethod": {
+      "type": "object",
+      "required": ["name", "annotations", "parameters", "returnType", "body"],
+      "properties": {
+        "name":        { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "maxLength": 128 },
+        "verb":        { "type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"] },
+        "route":       { "type": "string", "maxLength": 256 },
+        "annotations": { "type": "array", "items": { "$ref": "#/$defs/AnnotationBadge" } },
+        "parameters":  { "type": "array", "items": { "$ref": "#/$defs/AstParameter" } },
+        "returnType":  { "type": "string", "maxLength": 128 },
+        "body":        { "type": "array", "items": { "$ref": "#/$defs/BodyStatement" } }
+      }
+    },
+
+    "AstParameter": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name":      { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "maxLength": 128 },
+        "type":      { "type": "string", "maxLength": 128 },
+        "fromBody":  { "type": "boolean" },
+        "fromRoute": { "type": "boolean" },
+        "fromQuery": { "type": "boolean" }
+      }
+    },
+
+    "AstProperty": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name":         { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "maxLength": 128 },
+        "type":         { "type": "string", "maxLength": 128 },
+        "isPrimaryKey": { "type": "boolean" },
+        "isRequired":   { "type": "boolean" },
+        "maxLength":    { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "BodyStatement": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["ServiceCall", "Return"] }
+      },
+      "allOf": [
+        {
+          "if":   { "properties": { "type": { "const": "ServiceCall" } } },
+          "then": { "required": ["service", "method"], "properties": {
+            "service": { "type": "string", "maxLength": 128 },
+            "method":  { "type": "string", "maxLength": 128 }
+          }}
+        },
+        {
+          "if":   { "properties": { "type": { "const": "Return" } } },
+          "then": { "required": ["value"], "properties": {
+            "value": { "type": "string", "maxLength": 512 }
+          }}
+        }
+      ]
+    },
+
+    "AstEdge": {
+      "type": "object",
+      "required": ["id", "source", "target"],
+      "properties": {
+        "id":           { "type": "string" },
+        "source":       { "type": "string" },
+        "sourceHandle": { "type": "string" },
+        "target":       { "type": "string" },
+        "targetHandle": { "type": "string" },
+        "label":        { "type": "string", "maxLength": 256 }
+      }
+    }
+  }
+}
