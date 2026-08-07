@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ViDev.Api.Dtos;
 using ViDev.Api.Services;
 
 namespace ViDev.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class TemplatesController : ControllerBase
@@ -26,10 +29,9 @@ public class TemplatesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TemplateResponse>> Create([FromBody] CreateTemplateRequest request)
     {
-        // TODO: Replace with authenticated user ID from Day 5
-        var tempAuthorId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var authorId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         
-        var response = await _templateService.CreateAsync(request, tempAuthorId);
+        var response = await _templateService.CreateAsync(request, authorId);
         return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
     }
 

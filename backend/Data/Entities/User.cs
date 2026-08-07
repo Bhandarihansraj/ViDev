@@ -21,6 +21,9 @@ public class User
     [MaxLength(256)]
     public string? AuthProviderId { get; set; }
 
+    [Required, MaxLength(256)]
+    public string PasswordHash { get; set; } = string.Empty;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation
