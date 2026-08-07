@@ -1,0 +1,6 @@
+@ViDev.Api_HostAddress = http://localhost:5152
+
+GET {{ViDev.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
