@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ViDev.Api.Data;
+using ViDev.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddScoped<ITemplateService, TemplateService>();
 
 // EF Core + PostgreSQL
 // Connection string comes from environment variable or appsettings.
