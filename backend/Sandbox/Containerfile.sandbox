@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS sandbox
+WORKDIR /src
+
+# Security: run as non-root user
+RUN adduser -D -h /home/sandbox sandbox
+USER sandbox
+
+# No ENTRYPOINT — used as a one-shot compile container
+# Usage: podman run --rm --network none -v ./project:/src:ro videv-sandbox dotnet build /src

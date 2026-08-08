@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using ViDev.Api.Data;
+using ViDev.Api.Sandbox;
 using ViDev.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +46,16 @@ builder.Services.AddDbContext<ViDevDbContext>(options =>
         builder.Configuration.GetConnectionString("ViDevDb")
     )
 );
+
+// Compile Sandbox — SECURITY.md §5: isolation before Roslyn runs
+builder.Services.Configure<SandboxOptions>(
+    builder.Configuration.GetSection(SandboxOptions.SectionName));
+
+var sandboxMode = builder.Configuration.GetValue<string>("Sandbox:Mode") ?? "Process";
+if (sandboxMode.Equals("Podman", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<ICompileSandbox, PodmanSandbox>();
+else
+    builder.Services.AddSingleton<ICompileSandbox, ProcessSandbox>();
 
 // ---------------------------------------------------------------------------
 // App Pipeline
