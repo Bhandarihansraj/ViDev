@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using ViDev.Api.CodeGen;
 using ViDev.Api.Data;
 using ViDev.Api.Sandbox;
 using ViDev.Api.Services;
@@ -17,6 +18,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddScoped<ITemplateService, TemplateService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<ICodeGenerator, CodeGenerationService>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
