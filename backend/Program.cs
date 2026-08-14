@@ -20,6 +20,7 @@ builder.Services.AddScoped<ITemplateService, TemplateService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<ProjectAssembler>();
 builder.Services.AddSingleton<ICodeGenerator, CodeGenerationService>();
+builder.Services.AddScoped<ICompileAndPackageService, CompileAndPackageService>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 

@@ -14,10 +14,12 @@ namespace ViDev.Api.Controllers;
 public class GenerateController : ControllerBase
 {
     private readonly ICodeGenerator _codeGenerator;
+    private readonly ICompileAndPackageService _compileService;
 
-    public GenerateController(ICodeGenerator codeGenerator)
+    public GenerateController(ICodeGenerator codeGenerator, ICompileAndPackageService compileService)
     {
         _codeGenerator = codeGenerator;
+        _compileService = compileService;
     }
 
     // POST /api/generate
@@ -34,5 +36,44 @@ public class GenerateController : ControllerBase
     {
         var files = await _codeGenerator.GenerateProjectAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
         return Ok(files.Keys.ToList());
+    }
+
+    // POST /api/generate/compile
+    // Generates, compiles in sandbox, returns compile result (no ZIP)
+    [HttpPost("compile")]
+    public async Task<ActionResult<CompileResultDto>> Compile([FromBody] GenerateRequest request)
+    {
+        var result = await _compileService.GenerateCompileAndPackageAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
+        var dto = new CompileResultDto(
+            result.CompileSuccess,
+            result.CompileOutput,
+            result.CompileErrors,
+            result.CompileElapsedMs,
+            result.TimedOut,
+            result.GeneratedFiles.Keys.ToList()
+        );
+        return Ok(dto);
+    }
+
+    // POST /api/generate/download  
+    // Generates, compiles, returns ZIP file if compile succeeds
+    [HttpPost("download")]
+    public async Task<IActionResult> Download([FromBody] GenerateRequest request)
+    {
+        var result = await _compileService.GenerateCompileAndPackageAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
+        if (result.CompileSuccess && result.ZipBytes != null)
+        {
+            return File(result.ZipBytes, "application/zip", $"{request.ProjectName}.zip");
+        }
+
+        var dto = new CompileResultDto(
+            result.CompileSuccess,
+            result.CompileOutput,
+            result.CompileErrors,
+            result.CompileElapsedMs,
+            result.TimedOut,
+            result.GeneratedFiles.Keys.ToList()
+        );
+        return UnprocessableEntity(dto);
     }
 }
