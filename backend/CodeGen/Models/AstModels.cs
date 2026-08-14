@@ -42,3 +42,29 @@ public sealed record AstSocketModel(
     [property: JsonPropertyName("dataType")] string DataType,
     [property: JsonPropertyName("targetField")] string TargetField
 );
+
+public sealed record AstServiceNode(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("implements")] string Implements,
+    [property: JsonPropertyName("lifetime")] string Lifetime,
+    [property: JsonPropertyName("annotations")] List<string> Annotations,
+    [property: JsonPropertyName("methods")] List<AstMethodModel> Methods,
+    [property: JsonPropertyName("sockets")] List<AstSocketModel> Sockets
+);
+
+public sealed record AstEntityNode(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("tableName")] string TableName,
+    [property: JsonPropertyName("annotations")] List<string> Annotations,
+    [property: JsonPropertyName("properties")] List<AstPropertyModel> Properties
+);
+
+public sealed record AstPropertyModel(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("isPrimaryKey")] bool IsPrimaryKey = false,
+    [property: JsonPropertyName("isRequired")] bool IsRequired = false,
+    [property: JsonPropertyName("maxLength")] int? MaxLength = null
+);
