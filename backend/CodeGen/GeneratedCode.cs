@@ -5,5 +5,6 @@ namespace ViDev.Api.CodeGen;
 /// </summary>
 public sealed record GeneratedCode(
     Dictionary<string, string> Files,
-    List<string> Warnings
+    List<string> Warnings,
+    string AstJson = ""
 );
