@@ -15,17 +15,32 @@ public class GenerateController : ControllerBase
 {
     private readonly ICodeGenerator _codeGenerator;
     private readonly ICompileAndPackageService _compileService;
+    private readonly ViDev.Api.CodeGen.Wiring.IWiringValidator _wiringValidator;
 
-    public GenerateController(ICodeGenerator codeGenerator, ICompileAndPackageService compileService)
+    public GenerateController(ICodeGenerator codeGenerator, ICompileAndPackageService compileService, ViDev.Api.CodeGen.Wiring.IWiringValidator wiringValidator)
     {
         _codeGenerator = codeGenerator;
         _compileService = compileService;
+        _wiringValidator = wiringValidator;
+    }
+
+    private ActionResult? ValidateWiringOrFail(string astJson, out ViDev.Api.CodeGen.Wiring.WiringValidationResult result)
+    {
+        result = _wiringValidator.Validate(astJson);
+        if (!result.IsValid)
+        {
+            return BadRequest(new { message = "Wiring validation failed", issues = result.Issues });
+        }
+        return null;
     }
 
     // POST /api/generate
     [HttpPost]
     public async Task<ActionResult<Dictionary<string, string>>> Generate([FromBody] GenerateRequest request)
     {
+        var failResult = ValidateWiringOrFail(request.AstJson, out var wiringResult);
+        if (failResult != null) return failResult;
+
         var files = await _codeGenerator.GenerateProjectAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
         return Ok(files);
     }
@@ -34,6 +49,9 @@ public class GenerateController : ControllerBase
     [HttpPost("preview")]
     public async Task<ActionResult<List<string>>> Preview([FromBody] GenerateRequest request)
     {
+        var failResult = ValidateWiringOrFail(request.AstJson, out var wiringResult);
+        if (failResult != null) return failResult;
+
         var files = await _codeGenerator.GenerateProjectAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
         return Ok(files.Keys.ToList());
     }
@@ -43,6 +61,9 @@ public class GenerateController : ControllerBase
     [HttpPost("compile")]
     public async Task<ActionResult<CompileResultDto>> Compile([FromBody] GenerateRequest request)
     {
+        var failResult = ValidateWiringOrFail(request.AstJson, out var wiringResult);
+        if (failResult != null) return failResult;
+
         var result = await _compileService.GenerateCompileAndPackageAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
         var dto = new CompileResultDto(
             result.CompileSuccess,
@@ -60,6 +81,9 @@ public class GenerateController : ControllerBase
     [HttpPost("download")]
     public async Task<IActionResult> Download([FromBody] GenerateRequest request)
     {
+        var failResult = ValidateWiringOrFail(request.AstJson, out var wiringResult);
+        if (failResult != null) return failResult;
+
         var result = await _compileService.GenerateCompileAndPackageAsync(request.AstJson, request.ProjectName, HttpContext.RequestAborted);
         if (result.CompileSuccess && result.ZipBytes != null)
         {

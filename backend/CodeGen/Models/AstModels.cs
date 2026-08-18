@@ -89,3 +89,10 @@ public sealed record AstDocument(
     [property: JsonPropertyName("nodes")] List<System.Text.Json.JsonElement> Nodes,
     [property: JsonPropertyName("edges")] List<AstEdge> Edges
 );
+
+/// Represents a type transformation rule between connected nodes
+public sealed record WireTransform(
+    [property: JsonPropertyName("sourceType")] string SourceType,
+    [property: JsonPropertyName("targetType")] string TargetType,
+    [property: JsonPropertyName("expression")] string? Expression
+);
