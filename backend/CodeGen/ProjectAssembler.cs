@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using ViDev.Api.CodeGen.Models;
+using ViDev.Api.CodeGen.Badges;
 
 namespace ViDev.Api.CodeGen;
 
@@ -12,6 +13,13 @@ namespace ViDev.Api.CodeGen;
 /// </summary>
 public sealed class ProjectAssembler
 {
+    private readonly BadgeEffectRegistry _registry;
+
+    public ProjectAssembler(BadgeEffectRegistry registry)
+    {
+        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+    }
+
     /// <summary>
     /// Assembles a complete .NET project from generated code files.
     /// Returns a Dictionary<string, string> where key = relative file path, value = content.
@@ -24,29 +32,7 @@ public sealed class ProjectAssembler
 
         var result = new Dictionary<string, string>();
 
-        // 1. .csproj
-        string csprojContent = $@"<Project Sdk=""Microsoft.NET.Sdk.Web"">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-</Project>";
-        result[$"{projectName}/{projectName}.csproj"] = csprojContent;
-
-        // 2. appsettings.json
-        string appSettingsContent = @"{
-  ""Logging"": {
-    ""LogLevel"": {
-      ""Default"": ""Information"",
-      ""Microsoft.AspNetCore"": ""Warning""
-    }
-  },
-  ""AllowedHosts"": ""*""
-}";
-        result[$"{projectName}/appsettings.json"] = appSettingsContent;
-
-        // Parse AST to find Services
+        var uniqueAnnotations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var services = new List<AstServiceNode>();
         if (!string.IsNullOrWhiteSpace(generatedCode.AstJson))
         {
@@ -61,6 +47,30 @@ public sealed class ProjectAssembler
                 IEnumerable<JsonElement> nodes = root.ValueKind == JsonValueKind.Array ? root.EnumerateArray() : new[] { root };
                 foreach (var node in nodes)
                 {
+                    if (node.TryGetProperty("annotations", out var annProp) && annProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var ann in annProp.EnumerateArray())
+                        {
+                            var a = ann.GetString();
+                            if (!string.IsNullOrEmpty(a)) uniqueAnnotations.Add(a);
+                        }
+                    }
+
+                    if (node.TryGetProperty("methods", out var methodsProp) && methodsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var method in methodsProp.EnumerateArray())
+                        {
+                            if (method.TryGetProperty("annotations", out var mAnnProp) && mAnnProp.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var ann in mAnnProp.EnumerateArray())
+                                {
+                                    var a = ann.GetString();
+                                    if (!string.IsNullOrEmpty(a)) uniqueAnnotations.Add(a);
+                                }
+                            }
+                        }
+                    }
+
                     if (node.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "Service")
                     {
                         var serviceNode = node.Deserialize<AstServiceNode>(serializeOptions);
@@ -76,6 +86,45 @@ public sealed class ProjectAssembler
                 // Ignored
             }
         }
+
+        var effects = _registry.GetAllEffects(uniqueAnnotations).OrderBy(e => e.ProgramCsOrder).ToList();
+
+        // 1. .csproj
+        var packages = effects.SelectMany(e => e.NuGetPackages).Distinct().ToList();
+        string packageRefs = string.Join("\n", packages.Select(p => $"    <PackageReference Include=\"{p}\" Version=\"10.0.*\" />"));
+        string itemGroup = packages.Count > 0 ? $"\n  <ItemGroup>\n{packageRefs}\n  </ItemGroup>" : "";
+
+        string csprojContent = $@"<Project Sdk=""Microsoft.NET.Sdk.Web"">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>{itemGroup}
+</Project>";
+        result[$"{projectName}/{projectName}.csproj"] = csprojContent;
+
+        // 2. appsettings.json
+        var appSettingsKeys = effects.SelectMany(e => e.AppSettingsKeys).Distinct().ToList();
+        var extraSettings = "";
+        if (appSettingsKeys.Contains("Jwt:Secret"))
+        {
+            extraSettings = @",
+  ""Jwt"": {
+    ""Secret"": ""super-secret-key-replace-me-in-prod"",
+    ""Issuer"": ""GeneratedApi"",
+    ""Audience"": ""GeneratedApiClient""
+  }";
+        }
+
+        string appSettingsContent = @"{
+  ""Logging"": {
+    ""LogLevel"": {
+      ""Default"": ""Information"",
+      ""Microsoft.AspNetCore"": ""Warning""
+    }
+  },
+  ""AllowedHosts"": ""*""" + extraSettings + "\n}";
+        result[$"{projectName}/appsettings.json"] = appSettingsContent;
 
         // 3. Folders for generated files
         var hasControllers = false;
@@ -99,22 +148,46 @@ public sealed class ProjectAssembler
             }
             else
             {
-                // Everything else goes to Services/
                 result[$"{projectName}/Services/{fileName}"] = content;
                 hasServices = true;
             }
         }
 
         // 4. Program.cs
+        var usingDirectives = new HashSet<string>();
+        foreach (var effect in effects)
+        {
+            foreach (var u in effect.UsingDirectives) usingDirectives.Add(u);
+        }
+
         var programBuilder = new StringBuilder();
+        foreach (var u in usingDirectives) programBuilder.AppendLine($"using {u};");
+
         if (hasControllers) programBuilder.AppendLine("using Generated.Controllers;");
         if (hasServices) programBuilder.AppendLine("using Generated.Services;");
         if (hasEntities) programBuilder.AppendLine("using Generated.Entities;");
-        if (hasControllers || hasServices || hasEntities) programBuilder.AppendLine();
+        if (hasControllers || hasServices || hasEntities || usingDirectives.Count > 0) programBuilder.AppendLine();
 
         programBuilder.AppendLine("var builder = WebApplication.CreateBuilder(args);");
         programBuilder.AppendLine("builder.Services.AddControllers();");
         
+        var builderStmts = new List<string>();
+        var appStmts = new List<string>();
+
+        foreach (var effect in effects)
+        {
+            bool isApp = false;
+            foreach (var stmt in effect.ProgramCsStatements)
+            {
+                if (stmt.Contains("app.") || stmt.StartsWith("// Add after app.Build()")) isApp = true;
+                
+                if (isApp) appStmts.Add(stmt);
+                else builderStmts.Add(stmt);
+            }
+        }
+
+        foreach (var stmt in builderStmts) programBuilder.AppendLine(stmt);
+
         foreach (var service in services)
         {
             var lifetime = service.Lifetime ?? "Scoped";
@@ -126,6 +199,13 @@ public sealed class ProjectAssembler
         }
 
         programBuilder.AppendLine("var app = builder.Build();");
+        
+        foreach (var stmt in appStmts)
+        {
+            if (stmt.StartsWith("// Add after app.Build()")) continue;
+            programBuilder.AppendLine(stmt);
+        }
+
         programBuilder.AppendLine("app.MapControllers();");
         programBuilder.AppendLine("app.Run();");
 
