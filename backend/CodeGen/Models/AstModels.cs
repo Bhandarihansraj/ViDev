@@ -68,3 +68,24 @@ public sealed record AstPropertyModel(
     [property: JsonPropertyName("isRequired")] bool IsRequired = false,
     [property: JsonPropertyName("maxLength")] int? MaxLength = null
 );
+
+public sealed record AstPlugModel(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("dataType")] string DataType,
+    [property: JsonPropertyName("sourceField")] string SourceField
+);
+
+public sealed record AstEdge(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("sourceHandle")] string? SourceHandle,
+    [property: JsonPropertyName("target")] string Target,
+    [property: JsonPropertyName("targetHandle")] string? TargetHandle,
+    [property: JsonPropertyName("label")] string? Label
+);
+
+public sealed record AstDocument(
+    [property: JsonPropertyName("nodes")] List<System.Text.Json.JsonElement> Nodes,
+    [property: JsonPropertyName("edges")] List<AstEdge> Edges
+);

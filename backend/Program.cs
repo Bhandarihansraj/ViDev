@@ -21,7 +21,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<ProjectAssembler>();
 builder.Services.AddSingleton<ICodeGenerator, CodeGenerationService>();
 builder.Services.AddScoped<ICompileAndPackageService, CompileAndPackageService>();
-
+builder.Services.AddSingleton<ViDev.Api.CodeGen.Wiring.IWiringValidator, ViDev.Api.CodeGen.Wiring.WiringValidator>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 var jwtSettings = builder.Configuration.GetSection("Jwt");
